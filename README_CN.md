@@ -182,6 +182,20 @@ dist-win\
 .\scripts\build-shuiyuan-exe.ps1 -SelfContained
 ```
 
+## Codex Skill
+
+仓库内置了一套 Codex skill：
+
+```text
+skills/shuiyuan-mcp/
+```
+
+它会指导 Codex 使用 `mcp__shuiyuan__` 工具完成水源搜索、读帖、发帖、修正中文编码、选择分类等流程。要安装到本机 Codex skills 目录，可以复制：
+
+```powershell
+Copy-Item .\skills\shuiyuan-mcp "$env:USERPROFILE\.codex\skills\shuiyuan-mcp" -Recurse -Force
+```
+
 ## 配置文件说明
 
 登录后生成的 profile 大致如下：
