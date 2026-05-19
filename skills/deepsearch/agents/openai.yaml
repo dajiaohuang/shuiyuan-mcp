@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deepsearch"
+  short_description: "Run multi-pass research with source verification."
+  default_prompt: "Use deepsearch to investigate this thoroughly, verify sources, and synthesize a clear answer."

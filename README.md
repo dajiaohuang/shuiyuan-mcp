@@ -339,10 +339,11 @@ To build Windows `.exe` launchers for the same flow:
 .\dist-win\shuiyuan-mcp.exe
 ```
 
-This repo also includes a Codex skill at `skills/shuiyuan-mcp/`. Copy it into your user skills directory if you want Codex to automatically follow the Shuiyuan MCP workflows:
+This repo also includes Codex skills at `skills/shuiyuan-mcp/` and `skills/deepsearch/`. Copy them into your user skills directory if you want Codex to automatically follow the Shuiyuan MCP workflows and trigger deeper multi-pass research when you say `deepsearch`:
 
 ```powershell
 Copy-Item .\skills\shuiyuan-mcp "$env:USERPROFILE\.codex\skills\shuiyuan-mcp" -Recurse -Force
+Copy-Item .\skills\deepsearch "$env:USERPROFILE\.codex\skills\deepsearch" -Recurse -Force
 ```
 
 ### Quick Start with User API Key (No Admin Required)
