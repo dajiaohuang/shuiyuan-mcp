@@ -59,7 +59,7 @@ corepack pnpm build
 .\scripts\shuiyuan-mcp.ps1
 ```
 
-这个命令会以 stdio transport 启动 MCP，适合配置到 Claude Desktop、Cursor、Codex 等 MCP 客户端。
+这个命令会以 stdio transport 启动 MCP，适合配置到 Claude Desktop、Cursor、Codex 等 MCP 客户端。水源专用启动入口默认开启写入工具，相当于自动附加 `--allow_writes --read_only=false`。
 
 如果你想临时用 HTTP transport 调试：
 
@@ -149,10 +149,10 @@ http://localhost:3765/mcp
 }
 ```
 
-如果你确实希望 MCP 能发帖、回复、保存草稿或上传文件，启动时加：
+水源专用启动入口默认开启写入工具，可以发帖、回复、保存草稿或上传文件：
 
 ```powershell
-.\scripts\shuiyuan-mcp.ps1 --allow_writes --read_only=false
+.\scripts\shuiyuan-mcp.ps1
 ```
 
 建议先让 AI 草拟内容，再由你确认发布。写入操作会受到你的水源账号权限限制。
@@ -174,7 +174,7 @@ dist-win\
 生成的入口：
 
 - `dist-win\shuiyuan-mcp-login.exe`：首次使用，打开窗口登录并保存 cookie。
-- `dist-win\shuiyuan-mcp.exe`：日常使用，复用已保存 cookie 启动 MCP。
+- `dist-win\shuiyuan-mcp.exe`：日常使用，复用已保存 cookie 启动 MCP，默认开启写入工具。
 
 如果希望生成自包含 exe：
 

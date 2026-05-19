@@ -325,7 +325,7 @@ For Shuiyuan's jAccount SSO flow, use the Shuiyuan helpers. They open a browser 
 # First-time login, then start the MCP stdio server
 .\scripts\shuiyuan-login-and-start.ps1
 
-# Later runs with the saved cookies
+# Later runs with the saved cookies. This defaults to --allow_writes --read_only=false.
 .\scripts\shuiyuan-mcp.ps1
 ```
 
