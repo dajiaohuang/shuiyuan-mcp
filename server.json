@@ -1,16 +1,16 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.discourse/mcp",
-  "description": "Discourse MCP CLI server (stdio) exposing Discourse tools via MCP",
+  "name": "io.github.dajiaohuang/shuiyuan-mcp",
+  "description": "Shuiyuan Discourse MCP server with cookie login launchers",
   "repository": {
-    "url": "https://github.com/discourse/discourse-mcp",
+    "url": "https://github.com/dajiaohuang/shuiyuan-mcp",
     "source": "github"
   },
   "version": "0.0.0",
   "packages": [
     {
       "registryType": "npm",
-      "identifier": "@discourse/mcp",
+      "identifier": "shuiyuan-mcp",
       "version": "0.0.0",
       "transport": {
         "type": "stdio"

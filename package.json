@@ -1,8 +1,8 @@
 {
-  "name": "@discourse/mcp",
-  "mcpName": "io.github.discourse/mcp",
+  "name": "shuiyuan-mcp",
+  "mcpName": "io.github.dajiaohuang/shuiyuan-mcp",
   "version": "0.2.8",
-  "description": "Discourse MCP CLI server (stdio) exposing Discourse tools via MCP",
+  "description": "Shuiyuan Discourse MCP server with cookie login launchers",
   "author": "Discourse",
   "license": "MIT",
   "keywords": [
@@ -11,9 +11,9 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/discourse/discourse-mcp.git"
+    "url": "git+https://github.com/dajiaohuang/shuiyuan-mcp.git"
   },
-  "homepage": "https://github.com/discourse/discourse-mcp#readme",
+  "homepage": "https://github.com/dajiaohuang/shuiyuan-mcp#readme",
   "private": false,
   "type": "module",
   "bin": {
