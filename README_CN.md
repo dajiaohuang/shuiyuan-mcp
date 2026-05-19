@@ -188,12 +188,14 @@ dist-win\
 
 ```text
 skills/shuiyuan-mcp/
+skills/deepsearch/
 ```
 
-它会指导 Codex 使用 `mcp__shuiyuan__` 工具完成水源搜索、读帖、发帖、修正中文编码、选择分类等流程。要安装到本机 Codex skills 目录，可以复制：
+`shuiyuan-mcp` 会指导 Codex 使用 `mcp__shuiyuan__` 工具完成水源搜索、读帖、发帖、修正中文编码、选择分类等流程。`deepsearch` 会在你说出关键词 `deepsearch` 或要求深度研究时，指导 Codex 做多轮检索、交叉验证和证据综合。要安装到本机 Codex skills 目录，可以复制：
 
 ```powershell
 Copy-Item .\skills\shuiyuan-mcp "$env:USERPROFILE\.codex\skills\shuiyuan-mcp" -Recurse -Force
+Copy-Item .\skills\deepsearch "$env:USERPROFILE\.codex\skills\deepsearch" -Recurse -Force
 ```
 
 ## 配置文件说明
