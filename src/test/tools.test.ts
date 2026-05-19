@@ -216,6 +216,107 @@ test('default-search prefix is applied to queries', async () => {
   }
 });
 
+test('read_topic uses raw pages for larger auto reads', async () => {
+  const logger = new Logger('silent');
+  const siteState = new SiteState({ logger, timeoutMs: 5000, defaultAuth: { type: 'none' } });
+  const { server, tools } = createMockServer();
+
+  const calls: string[] = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, _init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input.toString();
+    calls.push(url);
+    if (url.endsWith('/about.json')) {
+      return new Response(JSON.stringify({ about: { title: 'Example Discourse' } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (url.endsWith('/t/123.json')) {
+      return new Response(JSON.stringify({ id: 123, title: 'Big Topic', slug: 'big-topic', category_id: 7, tags: ['ai'], posts_count: 150 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (url.endsWith('/raw/123?page=1')) {
+      return new Response('raw page 1', { status: 200, headers: { 'Content-Type': 'text/plain' } });
+    }
+    return new Response('not found', { status: 404 });
+  }) as any;
+
+  try {
+    const { base, client } = siteState.buildClientForSite('https://example.com');
+    await client.get('/about.json');
+    siteState.selectSite(base);
+
+    await registerAllTools(server, siteState, logger, { allowWrites: false, toolsMode: 'discourse_api_only', hideSelectSite: true });
+
+    const result = await tools['discourse_read_topic'].handler({ topic_id: 123, post_limit: 50 }, {});
+    const json = JSON.parse(String(result.content?.[0]?.text || '{}'));
+
+    assert.equal(json.meta.strategy, 'raw');
+    assert.equal(json.raw_pages.length, 1);
+    assert.equal(json.raw_pages[0].raw, 'raw page 1');
+    assert.ok(calls.some(url => url.endsWith('/raw/123?page=1')));
+    assert.ok(!calls.some(url => url.includes('post_number=')));
+  } finally {
+    globalThis.fetch = originalFetch as any;
+  }
+});
+
+test('read_topic keeps structured mode when explicitly requested', async () => {
+  const logger = new Logger('silent');
+  const siteState = new SiteState({ logger, timeoutMs: 5000, defaultAuth: { type: 'none' } });
+  const { server, tools } = createMockServer();
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, _init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input.toString();
+    if (url.endsWith('/about.json')) {
+      return new Response(JSON.stringify({ about: { title: 'Example Discourse' } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (url.endsWith('/t/123.json?include_raw=true')) {
+      return new Response(JSON.stringify({
+        id: 123,
+        title: 'Small Topic',
+        slug: 'small-topic',
+        category_id: 7,
+        tags: [],
+        posts_count: 1,
+        post_stream: {
+          posts: [{ id: 1, post_number: 1, username: 'alice', created_at: '2026-05-19T00:00:00Z', raw: 'hello' }],
+        },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (url.endsWith('/t/123.json?post_number=2&include_raw=true')) {
+      return new Response(JSON.stringify({
+        id: 123,
+        title: 'Small Topic',
+        slug: 'small-topic',
+        category_id: 7,
+        tags: [],
+        posts_count: 1,
+        post_stream: { posts: [] },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    return new Response('not found', { status: 404 });
+  }) as any;
+
+  try {
+    const { base, client } = siteState.buildClientForSite('https://example.com');
+    await client.get('/about.json');
+    siteState.selectSite(base);
+
+    await registerAllTools(server, siteState, logger, { allowWrites: false, toolsMode: 'discourse_api_only', hideSelectSite: true });
+
+    const result = await tools['discourse_read_topic'].handler({ topic_id: 123, post_limit: 50, format: 'structured' }, {});
+    const json = JSON.parse(String(result.content?.[0]?.text || '{}'));
+
+    assert.equal(json.meta.strategy, 'structured');
+    assert.equal(json.posts.length, 1);
+    assert.equal(json.posts[0].raw, 'hello');
+  } finally {
+    globalThis.fetch = originalFetch as any;
+  }
+});
+
 // ========================
 // Tool registration tests - verify tools are exposed based on auth context
 // ========================
