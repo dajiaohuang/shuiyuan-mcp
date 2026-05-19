@@ -339,6 +339,12 @@ To build Windows `.exe` launchers for the same flow:
 .\dist-win\shuiyuan-mcp.exe
 ```
 
+This repo also includes a Codex skill at `skills/shuiyuan-mcp/`. Copy it into your user skills directory if you want Codex to automatically follow the Shuiyuan MCP workflows:
+
+```powershell
+Copy-Item .\skills\shuiyuan-mcp "$env:USERPROFILE\.codex\skills\shuiyuan-mcp" -Recurse -Force
+```
+
 ### Quick Start with User API Key (No Admin Required)
 
 ```bash

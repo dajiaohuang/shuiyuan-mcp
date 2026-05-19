@@ -1,0 +1,4 @@
+interface:
+  display_name: "Shuiyuan MCP"
+  short_description: "Search, read, draft, and publish on Shuiyuan with MCP."
+  default_prompt: "Use Shuiyuan MCP tools to search, read, summarize, draft, or publish Shuiyuan content safely."
