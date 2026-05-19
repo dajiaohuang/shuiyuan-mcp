@@ -1,5 +1,6 @@
 dist/*
 dist-win/*
+release/*
 node_modules/*
 packaging/**/bin/*
 packaging/**/obj/*
