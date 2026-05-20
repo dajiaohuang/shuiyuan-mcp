@@ -45,7 +45,7 @@ If write tools are absent, tell the user to restart Shuiyuan MCP with writes ena
 - Ask for category when ambiguous. For category IDs, read `references/categories.md`.
 - Use `极客时间` (`category_id: 51`) for technical tools, MCP, AI agents, programming, automation, or developer workflows.
 - Use `水源教程` (`category_id: 74`) for user-facing tutorials about Shuiyuan itself.
-- Keep titles concise and Chinese-readable.
+- Keep titles concise and Chinese-readable. Shuiyuan topic titles must be at most 48 characters; shorten before posting instead of retrying after a 422 error.
 - Include source links explicitly when introducing a project.
 - After publishing, return the Shuiyuan URL and mention any edits made.
 
