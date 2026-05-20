@@ -42,6 +42,7 @@ If write tools are absent, tell the user to restart Shuiyuan MCP with writes ena
 ## Publishing Rules
 
 - Do not publish unless the user clearly asked to publish.
+- Read `references/rules.md` before publishing public topics or replies about people, events, disputes, screenshots, privacy, sensitive claims, or large reposted content.
 - Ask for category when ambiguous. For category IDs, read `references/categories.md`.
 - Use `极客时间` (`category_id: 51`) for technical tools, MCP, AI agents, programming, automation, or developer workflows.
 - Use `水源教程` (`category_id: 74`) for user-facing tutorials about Shuiyuan itself.
