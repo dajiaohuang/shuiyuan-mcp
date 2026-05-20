@@ -2,6 +2,8 @@
 
 [中文说明](README_CN.md)
 
+> **Important Shuiyuan usage rules**: before publishing or automating Shuiyuan activity, read the bundled [Shuiyuan rules reference](skills/shuiyuan-mcp/references/rules.md).
+
 A Model Context Protocol (MCP) stdio server for Shuiyuan, the SJTU Discourse forum. It adds cookie-based login helpers on top of the upstream Discourse MCP tools/resources.
 
 - **Entry point**: `src/index.ts` → compiled to `dist/index.js` (binary name: `discourse-mcp`)

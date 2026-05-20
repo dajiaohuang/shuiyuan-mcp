@@ -1,5 +1,7 @@
 # Shuiyuan MCP 中文说明
 
+> **重要：水源使用规则**：发帖、回帖或自动化读取水源前，请先阅读内置的 [水源规则参考](skills/shuiyuan-mcp/references/rules.md)。
+
 Shuiyuan MCP 是一个面向 [水源社区](https://shuiyuan.sjtu.edu.cn/) 的 Model Context Protocol (MCP) 服务器。它基于 Discourse MCP，额外加入了适配水源 jAccount/SSO 登录的 cookie 登录流程：首次使用时打开浏览器让你登录，之后 MCP 可以复用本机保存的登录态访问水源。
 
 ## 功能概览
