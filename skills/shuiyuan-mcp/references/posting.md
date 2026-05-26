@@ -9,8 +9,9 @@ Use this file when composing or publishing Shuiyuan posts.
 2. Confirm category:
    - Use `references/categories.md` if the user has not chosen.
 3. Draft the title and raw Markdown.
-4. Publish with write tools when available.
-5. Read back the topic and check:
+4. For write tools, run preview first and present it to user.
+5. Only execute send with `confirm_send=true` + `preview_token` after user confirmation.
+6. Read back the topic and check:
    - Title is correct.
    - Chinese text is not replaced by `?`.
    - GitHub/source links render.
@@ -47,6 +48,7 @@ https://github.com/owner/repo
 When fixing a live post:
 
 - Preserve topic/post IDs from the publish response.
+- Keep using the same preview-confirm flow for edit tools.
 - Use `discourse_update_topic` for title/category/tags when available.
 - Use `discourse_update_post` for body when available.
 - If MCP update fails due CSRF and direct HTTP fallback is used, do not reveal cookies.

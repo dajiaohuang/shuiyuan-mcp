@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { RegisterFn } from "../types.js";
 import { jsonResponse, jsonError, rateLimit, isZodError, zodError } from "../../util/json_response.js";
 import { requireWriteAccess } from "../../util/access.js";
+import { createWritePreview, validateWritePreviewConfirmation } from "../../util/write_preview.js";
 
 export const registerUpdatePost: RegisterFn = (server, ctx, opts) => {
   if (!opts?.allowWrites) return;
@@ -10,21 +11,58 @@ export const registerUpdatePost: RegisterFn = (server, ctx, opts) => {
     post_id: z.number().int().positive().describe("Post ID to update"),
     raw: z.string().min(1).max(30000).describe("New post content (markdown)"),
     edit_reason: z.string().max(500).optional().describe("Reason for the edit"),
+    preview: z.boolean().optional().describe("Preview only. Default true."),
+    confirm_send: z.boolean().optional().describe("Set true to execute after preview."),
+    preview_token: z.string().min(1).optional().describe("Token returned by preview."),
   });
 
   server.registerTool(
     "discourse_update_post",
     {
       title: "Update Post",
-      description: "Update the content of an existing post. Returns JSON with updated post details.",
+      description: "Update the content of an existing post. By default returns preview only; call again with confirm_send=true and preview_token to apply.",
       inputSchema: schema.shape,
     },
     async (args, _extra) => {
       try {
-        const { post_id, raw, edit_reason } = schema.parse(args);
+        const {
+          post_id,
+          raw,
+          edit_reason,
+          confirm_send = false,
+          preview_token,
+        } = schema.parse(args);
 
         const accessError = requireWriteAccess(ctx.siteState, opts.allowWrites);
         if (accessError) return accessError;
+        const { base } = ctx.siteState.ensureSelectedSite();
+
+        const action = {
+          post_id,
+          raw,
+          edit_reason: edit_reason || null,
+        };
+
+        if (!confirm_send) {
+          const { previewToken, expiresAt } = createWritePreview("discourse_update_post", base, action);
+          return jsonResponse({
+            preview: true,
+            operation: "discourse_update_post",
+            preview_token: previewToken,
+            expires_at: expiresAt,
+            message:
+              "Preview generated. Ask user to modify fields if needed, or confirm send with confirm_send=true and preview_token.",
+            payload: action,
+          });
+        }
+
+        const confirmError = validateWritePreviewConfirmation({
+          toolName: "discourse_update_post",
+          siteBase: base,
+          action,
+          previewToken: preview_token,
+        });
+        if (confirmError) return confirmError;
 
         await rateLimit("post");
 
@@ -49,6 +87,7 @@ export const registerUpdatePost: RegisterFn = (server, ctx, opts) => {
           raw: post.raw ?? raw,
           updated_at: post.updated_at ?? null,
           edit_reason: post.edit_reason ?? edit_reason ?? null,
+          preview_confirmed: true,
         });
       } catch (e: unknown) {
         if (isZodError(e)) return zodError(e);

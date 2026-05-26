@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { RegisterFn } from "../types.js";
 import { jsonResponse, jsonError, rateLimit, isZodError, zodError } from "../../util/json_response.js";
 import { requireWriteAccess } from "../../util/access.js";
+import { createWritePreview, validateWritePreviewConfirmation } from "../../util/write_preview.js";
 
 export const registerUpdateTopic: RegisterFn = (server, ctx, opts) => {
   if (!opts?.allowWrites) return;
@@ -14,26 +15,71 @@ export const registerUpdateTopic: RegisterFn = (server, ctx, opts) => {
     featured_link: z.string().url().optional().describe("Featured link URL"),
     original_title: z.string().optional().describe("For conflict detection - expected current title"),
     original_tags: z.array(z.string()).optional().describe("For conflict detection - expected current tags"),
+    preview: z.boolean().optional().describe("Preview only. Default true."),
+    confirm_send: z.boolean().optional().describe("Set true to execute after preview."),
+    preview_token: z.string().min(1).optional().describe("Token returned by preview."),
   });
 
   server.registerTool(
     "discourse_update_topic",
     {
       title: "Update Topic",
-      description: "Update an existing topic (title, category, tags, featured_link). Returns JSON with updated topic details.",
+      description: "Update an existing topic (title, category, tags, featured_link). By default returns preview only; call again with confirm_send=true and preview_token to apply.",
       inputSchema: schema.shape,
     },
     async (args, _extra) => {
       try {
-        const { topic_id, title, category_id, tags, featured_link, original_title, original_tags } = schema.parse(args);
+        const {
+          topic_id,
+          title,
+          category_id,
+          tags,
+          featured_link,
+          original_title,
+          original_tags,
+          confirm_send = false,
+          preview_token,
+        } = schema.parse(args);
 
         const accessError = requireWriteAccess(ctx.siteState, opts.allowWrites);
         if (accessError) return accessError;
+        const { base } = ctx.siteState.ensureSelectedSite();
 
         // Fail fast if no updatable fields provided
         if (title === undefined && category_id === undefined && tags === undefined && featured_link === undefined) {
           return jsonError("At least one of title, category_id, tags, or featured_link is required");
         }
+
+        const action = {
+          topic_id,
+          title: title ?? null,
+          category_id: category_id ?? null,
+          tags: tags ?? null,
+          featured_link: featured_link ?? null,
+          original_title: original_title ?? null,
+          original_tags: original_tags ?? null,
+        };
+
+        if (!confirm_send) {
+          const { previewToken, expiresAt } = createWritePreview("discourse_update_topic", base, action);
+          return jsonResponse({
+            preview: true,
+            operation: "discourse_update_topic",
+            preview_token: previewToken,
+            expires_at: expiresAt,
+            message:
+              "Preview generated. Ask user to modify fields if needed, or confirm send with confirm_send=true and preview_token.",
+            payload: action,
+          });
+        }
+
+        const confirmError = validateWritePreviewConfirmation({
+          toolName: "discourse_update_topic",
+          siteBase: base,
+          action,
+          previewToken: preview_token,
+        });
+        if (confirmError) return confirmError;
 
         await rateLimit("topic");
 
@@ -96,6 +142,7 @@ export const registerUpdateTopic: RegisterFn = (server, ctx, opts) => {
           success: true,
           topic_id,
           updated_fields: updatedFields,
+          preview_confirmed: true,
           topic: {
             id: topic.id ?? topic_id,
             title: topic.title ?? title,
