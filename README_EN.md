@@ -73,9 +73,13 @@ The server registers tools under the MCP server name `@discourse/mcp`. Choose a 
 - **Write safety**
 
   - Writes are disabled by default.
-  - Write tools (`discourse_create_post`, `discourse_create_topic`, `discourse_create_category`, `discourse_update_topic`, `discourse_create_user`, `discourse_update_user`, `discourse_upload_file`, `discourse_save_draft`, `discourse_delete_draft`) are only registered when `--allow_writes` AND not `--read_only`.
+  - Write tools (`discourse_create_post`, `discourse_create_topic`, `discourse_create_category`, `discourse_update_topic`, `discourse_update_post`, `discourse_create_user`, `discourse_update_user`, `discourse_upload_file`, `discourse_save_draft`, `discourse_delete_draft`, `discourse_create_query`, `discourse_update_query`, `discourse_delete_query`) are only registered when `--allow_writes` AND not `--read_only`.
   - Write tools require a matching `auth_pairs` entry for the selected site; otherwise they return an error.
   - A ~1 req/sec rate limit is enforced for write actions.
+  - All write tools use a two-step flow by default:
+    - First call returns a preview (`preview: true`, `preview_token`, `expires_at`) and does not write.
+    - Second call must include `confirm_send: true` and the `preview_token` to execute.
+    - If payload changes between preview and confirm, the write is rejected and a fresh preview is required.
 
 - **Flags & defaults**
 
@@ -202,6 +206,12 @@ Resources provide static/semi-static read-only data via URI addressing. Use thes
 ## Tools
 
 Built‑in tools (always present unless noted). All tools return **strict JSON** (no Markdown).
+
+Write tool confirmation contract (applies to all write tools below):
+
+- Inputs additionally support: `preview?: boolean`, `confirm_send?: boolean`, `preview_token?: string`
+- Default behavior is preview-only when `confirm_send` is not set to `true`
+- Confirmed write responses include `preview_confirmed: true`
 
 - `discourse_search`
   - Input: `{ query: string; max_results?: number (1–50, default 10) }`

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { RegisterFn } from "../types.js";
 import { jsonResponse, jsonError, rateLimit, isZodError, zodError } from "../../util/json_response.js";
 import { requireWriteAccess } from "../../util/access.js";
+import { createWritePreview, validateWritePreviewConfirmation } from "../../util/write_preview.js";
 
 export const registerCreateUser: RegisterFn = (server, ctx, opts) => {
   if (!opts?.allowWrites) return;
@@ -14,13 +15,16 @@ export const registerCreateUser: RegisterFn = (server, ctx, opts) => {
     active: z.boolean().optional().default(true),
     approved: z.boolean().optional().default(true),
     upload_id: z.number().int().positive().optional().describe("Avatar upload_id (from discourse_upload_file)"),
+    preview: z.boolean().optional().describe("Preview only. Default true."),
+    confirm_send: z.boolean().optional().describe("Set true to execute after preview."),
+    preview_token: z.string().min(1).optional().describe("Token returned by preview."),
   });
 
   server.registerTool(
     "discourse_create_user",
     {
       title: "Create User",
-      description: "Create a new user account. If upload_id is provided, sets the user's avatar after creation. Returns JSON with success status and user details.",
+      description: "Create a new user account. By default returns preview only; call again with confirm_send=true and preview_token to execute.",
       inputSchema: schema.shape,
     },
     async (input, _extra) => {
@@ -29,6 +33,47 @@ export const registerCreateUser: RegisterFn = (server, ctx, opts) => {
 
         const accessError = requireWriteAccess(ctx.siteState, opts.allowWrites);
         if (accessError) return accessError;
+        const { base } = ctx.siteState.ensureSelectedSite();
+
+        const action = {
+          username: args.username,
+          email: args.email,
+          name: args.name,
+          password: args.password,
+          active: args.active,
+          approved: args.approved,
+          upload_id: args.upload_id ?? null,
+        };
+
+        if (!args.confirm_send) {
+          const { previewToken, expiresAt } = createWritePreview("discourse_create_user", base, action);
+          return jsonResponse({
+            preview: true,
+            operation: "discourse_create_user",
+            preview_token: previewToken,
+            expires_at: expiresAt,
+            message:
+              "Preview generated. Ask user to modify fields if needed, or confirm send with confirm_send=true and preview_token.",
+            payload: {
+              username: args.username,
+              email: args.email,
+              name: args.name,
+              password: "<redacted>",
+              password_length: args.password.length,
+              active: args.active,
+              approved: args.approved,
+              upload_id: args.upload_id ?? null,
+            },
+          });
+        }
+
+        const confirmError = validateWritePreviewConfirmation({
+          toolName: "discourse_create_user",
+          siteBase: base,
+          action,
+          previewToken: args.preview_token,
+        });
+        if (confirmError) return confirmError;
 
         await rateLimit("user");
         const { client } = ctx.siteState.ensureSelectedSite();
@@ -73,6 +118,7 @@ export const registerCreateUser: RegisterFn = (server, ctx, opts) => {
             email: args.email,
             active: response.active ?? args.active,
             avatar_updated: avatarUpdated,
+            preview_confirmed: true,
             message: response.message || "Account created",
           };
           if (avatarError) {
