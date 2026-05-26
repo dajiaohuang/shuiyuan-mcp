@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { RegisterFn } from "../types.js";
 import { jsonResponse, jsonError, rateLimit, isZodError, zodError } from "../../util/json_response.js";
 import { requireWriteAccess } from "../../util/access.js";
+import { createWritePreview, validateWritePreviewConfirmation } from "../../util/write_preview.js";
 
 export const registerUpdateUser: RegisterFn = (server, ctx, opts) => {
   if (!opts?.allowWrites) return;
@@ -18,13 +19,16 @@ export const registerUpdateUser: RegisterFn = (server, ctx, opts) => {
     profile_background_upload_url: z.string().optional().describe("Profile background image URL"),
     card_background_upload_url: z.string().optional().describe("Card background image URL"),
     upload_id: z.number().int().positive().optional().describe("Avatar upload_id (from discourse_upload_file)"),
+    preview: z.boolean().optional().describe("Preview only. Default true."),
+    confirm_send: z.boolean().optional().describe("Set true to execute after preview."),
+    preview_token: z.string().min(1).optional().describe("Token returned by preview."),
   });
 
   server.registerTool(
     "discourse_update_user",
     {
       title: "Update User",
-      description: "Update user profile fields. If upload_id is provided, also sets the user's avatar. Returns JSON with success status and updated user details.",
+      description: "Update user profile fields. By default returns preview only; call again with confirm_send=true and preview_token to execute.",
       inputSchema: schema.shape,
     },
     async (input, _extra) => {
@@ -33,11 +37,9 @@ export const registerUpdateUser: RegisterFn = (server, ctx, opts) => {
 
         const accessError = requireWriteAccess(ctx.siteState, opts.allowWrites);
         if (accessError) return accessError;
+        const { base } = ctx.siteState.ensureSelectedSite();
 
-        await rateLimit("user");
-        const { client } = ctx.siteState.ensureSelectedSite();
-
-        const { username, upload_id, ...profileFields } = args;
+        const { username, upload_id, confirm_send = false, preview_token, ...profileFields } = args;
 
         // Build update payload - only include fields that were provided
         const updatePayload: Record<string, any> = {};
@@ -85,6 +87,36 @@ export const registerUpdateUser: RegisterFn = (server, ctx, opts) => {
           return jsonError("At least one field or upload_id is required");
         }
 
+        const action = {
+          username,
+          profile_fields: updatePayload,
+          upload_id: upload_id ?? null,
+        };
+
+        if (!confirm_send) {
+          const { previewToken, expiresAt } = createWritePreview("discourse_update_user", base, action);
+          return jsonResponse({
+            preview: true,
+            operation: "discourse_update_user",
+            preview_token: previewToken,
+            expires_at: expiresAt,
+            message:
+              "Preview generated. Ask user to modify fields if needed, or confirm send with confirm_send=true and preview_token.",
+            payload: action,
+          });
+        }
+
+        const confirmError = validateWritePreviewConfirmation({
+          toolName: "discourse_update_user",
+          siteBase: base,
+          action,
+          previewToken: preview_token,
+        });
+        if (confirmError) return confirmError;
+
+        await rateLimit("user");
+        const { client } = ctx.siteState.ensureSelectedSite();
+
         let userResponse: any = null;
         let avatarUpdated = false;
         let avatarError: string | undefined;
@@ -125,6 +157,7 @@ export const registerUpdateUser: RegisterFn = (server, ctx, opts) => {
           username,
           updated_fields: updatedFields,
           avatar_updated: avatarUpdated,
+          preview_confirmed: true,
           user: {
             id: user.id,
             username: user.username,

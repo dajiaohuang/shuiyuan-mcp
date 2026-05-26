@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { RegisterFn } from "../types.js";
 import { jsonResponse, jsonError, rateLimit } from "../../util/json_response.js";
 import { requireWriteAccess } from "../../util/access.js";
+import { createWritePreview, validateWritePreviewConfirmation } from "../../util/write_preview.js";
 
 /**
  * Discourse Draft Tools
@@ -114,6 +115,9 @@ export const registerSaveDraft: RegisterFn = (server, ctx, opts) => {
       .enum(["createTopic", "reply", "edit", "privateMessage"])
       .optional()
       .describe('Draft action type (defaults based on draft_key)'),
+    preview: z.boolean().optional().describe("Preview only. Default true."),
+    confirm_send: z.boolean().optional().describe("Set true to execute after preview."),
+    preview_token: z.string().min(1).optional().describe("Token returned by preview."),
   });
 
   server.registerTool(
@@ -121,44 +125,84 @@ export const registerSaveDraft: RegisterFn = (server, ctx, opts) => {
     {
       title: "Create/Save Draft",
       description:
-        "Create or update a draft. Returns JSON with draft_key and new sequence number.",
+        "Create or update a draft. By default returns preview only; call again with confirm_send=true and preview_token to execute.",
       inputSchema: schema.shape,
     },
     async (input: unknown, _extra: unknown) => {
-      const { draft_key, reply, title, category_id, tags, sequence, action } = schema.parse(input);
+      const { draft_key, reply, title, category_id, tags, sequence, action, confirm_send = false, preview_token } = schema.parse(input);
 
       const accessError = requireWriteAccess(ctx.siteState, opts.allowWrites);
       if (accessError) return accessError;
+      const { base } = ctx.siteState.ensureSelectedSite();
+
+      const draftData: Record<string, unknown> = { reply };
+
+      let resolvedAction = action;
+      if (!resolvedAction) {
+        if (draft_key === "new_topic") resolvedAction = "createTopic";
+        else if (draft_key === "new_private_message") resolvedAction = "privateMessage";
+        else if (draft_key.startsWith("topic_")) resolvedAction = "reply";
+      }
+
+      if (resolvedAction) draftData.action = resolvedAction;
+      if (title) draftData.title = title;
+      if (typeof category_id === "number") draftData.categoryId = category_id;
+      if (tags && tags.length > 0) draftData.tags = tags;
+
+      if (draft_key.startsWith("topic_")) {
+        const topicId = parseInt(draft_key.replace("topic_", ""), 10);
+        if (!isNaN(topicId)) draftData.topic_id = topicId;
+      }
+
+      const payload = {
+        draft_key,
+        data: JSON.stringify(draftData),
+        sequence,
+      };
+
+      const actionForConfirm = {
+        draft_key,
+        sequence,
+        payload,
+      };
+
+      if (!confirm_send) {
+        const { previewToken, expiresAt } = createWritePreview("discourse_save_draft", base, actionForConfirm);
+        return jsonResponse({
+          preview: true,
+          operation: "discourse_save_draft",
+          preview_token: previewToken,
+          expires_at: expiresAt,
+          message:
+            "Preview generated. Ask user to modify fields if needed, or confirm send with confirm_send=true and preview_token.",
+          payload: {
+            draft_key,
+            sequence,
+            data: {
+              title: draftData.title ?? null,
+              reply: typeof draftData.reply === "string" ? String(draftData.reply).slice(0, 200) : null,
+              reply_length: typeof draftData.reply === "string" ? String(draftData.reply).length : 0,
+              category_id: draftData.categoryId ?? null,
+              tags: Array.isArray(draftData.tags) ? draftData.tags : [],
+              action: draftData.action ?? null,
+              topic_id: draftData.topic_id ?? null,
+            },
+          },
+        });
+      }
+
+      const confirmError = validateWritePreviewConfirmation({
+        toolName: "discourse_save_draft",
+        siteBase: base,
+        action: actionForConfirm,
+        previewToken: preview_token,
+      });
+      if (confirmError) return confirmError;
 
       await rateLimit("draft", 500);
 
       try {
         const { client } = ctx.siteState.ensureSelectedSite();
-
-        const draftData: Record<string, unknown> = { reply };
-
-        let resolvedAction = action;
-        if (!resolvedAction) {
-          if (draft_key === "new_topic") resolvedAction = "createTopic";
-          else if (draft_key === "new_private_message") resolvedAction = "privateMessage";
-          else if (draft_key.startsWith("topic_")) resolvedAction = "reply";
-        }
-
-        if (resolvedAction) draftData.action = resolvedAction;
-        if (title) draftData.title = title;
-        if (typeof category_id === "number") draftData.categoryId = category_id;
-        if (tags && tags.length > 0) draftData.tags = tags;
-
-        if (draft_key.startsWith("topic_")) {
-          const topicId = parseInt(draft_key.replace("topic_", ""), 10);
-          if (!isNaN(topicId)) draftData.topic_id = topicId;
-        }
-
-        const payload = {
-          draft_key,
-          data: JSON.stringify(draftData),
-          sequence,
-        };
 
         const result = (await client.post("/drafts.json", payload)) as {
           draft_sequence?: number;
@@ -176,6 +220,7 @@ export const registerSaveDraft: RegisterFn = (server, ctx, opts) => {
           draft_key,
           sequence: result.draft_sequence ?? sequence,
           saved: true,
+          preview_confirmed: true,
         });
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -194,6 +239,9 @@ export const registerDeleteDraft: RegisterFn = (server, ctx, opts) => {
   const schema = z.object({
     draft_key: z.string().min(1).max(40).describe("Draft key to delete"),
     sequence: z.number().int().min(0).describe("Current sequence number (required for deletion)"),
+    preview: z.boolean().optional().describe("Preview only. Default true."),
+    confirm_send: z.boolean().optional().describe("Set true to execute after preview."),
+    preview_token: z.string().min(1).optional().describe("Token returned by preview."),
   });
 
   server.registerTool(
@@ -201,21 +249,48 @@ export const registerDeleteDraft: RegisterFn = (server, ctx, opts) => {
     {
       title: "Delete Draft",
       description:
-        "Delete a draft by key. Requires current sequence number to prevent conflicts.",
+        "Delete a draft by key. By default returns preview only; call again with confirm_send=true and preview_token to execute.",
       inputSchema: schema.shape,
     },
     async (input: unknown, _extra: unknown) => {
-      const { draft_key, sequence } = schema.parse(input);
+      const { draft_key, sequence, confirm_send = false, preview_token } = schema.parse(input);
 
       const accessError = requireWriteAccess(ctx.siteState, opts.allowWrites);
       if (accessError) return accessError;
+      const { base } = ctx.siteState.ensureSelectedSite();
+
+      const action = {
+        draft_key,
+        sequence,
+      };
+
+      if (!confirm_send) {
+        const { previewToken, expiresAt } = createWritePreview("discourse_delete_draft", base, action);
+        return jsonResponse({
+          preview: true,
+          operation: "discourse_delete_draft",
+          preview_token: previewToken,
+          expires_at: expiresAt,
+          message:
+            "Preview generated. Ask user to modify fields if needed, or confirm send with confirm_send=true and preview_token.",
+          payload: action,
+        });
+      }
+
+      const confirmError = validateWritePreviewConfirmation({
+        toolName: "discourse_delete_draft",
+        siteBase: base,
+        action,
+        previewToken: preview_token,
+      });
+      if (confirmError) return confirmError;
 
       await rateLimit("draft", 500);
 
       try {
         const { client } = ctx.siteState.ensureSelectedSite();
         await client.delete(`/drafts/${encodeURIComponent(draft_key)}.json`, { sequence });
-        return jsonResponse({ draft_key, deleted: true });
+        return jsonResponse({ draft_key, deleted: true, preview_confirmed: true });
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         if (msg.includes("409") || msg.toLowerCase().includes("conflict") || msg.toLowerCase().includes("sequence")) {
