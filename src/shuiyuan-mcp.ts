@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { access } from "node:fs/promises";
 import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import { main as startMcp } from "./index.js";
 import { parseArgs } from "./util/cli.js";
+import { isMainModule } from "./util/is_main.js";
 import { SHUIYUAN_SITE, defaultShuiyuanProfileFile } from "./shuiyuan_defaults.js";
 
 export async function main(rawArgs = process.argv.slice(2)) {
@@ -30,7 +30,7 @@ export async function main(rawArgs = process.argv.slice(2)) {
   ]);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   main().catch((err) => {
     const msg = err?.message || String(err);
     process.stderr.write(`[${new Date().toISOString()}] ERROR ${msg}\n`);
