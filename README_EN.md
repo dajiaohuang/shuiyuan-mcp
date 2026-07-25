@@ -314,6 +314,17 @@ pnpm build && pnpm dev
 
   - Tests run with Node’s test runner against compiled artifacts (`dist/test/**/*.js`). Ensure `pnpm build` before `pnpm test` if invoking scripts individually.
 
+## Linux deployment
+
+Linux source deployment, graphical first-time login, headless state transfer, HTTP loopback binding, and systemd user-service setup are documented in the [Linux deployment guide](docs/linux-deployment.en.md).
+
+```bash
+corepack pnpm install --frozen-lockfile
+corepack pnpm build
+./scripts/shuiyuan-login.sh
+./scripts/shuiyuan-mcp.sh
+```
+
 - **Publishing (optional)**
 
   - The package is published as `@discourse/mcp` and exposes a `bin` named `discourse-mcp`. Prefer `npx @discourse/mcp@latest` for frictionless usage.

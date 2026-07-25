@@ -76,6 +76,32 @@ test('HTTP transport health endpoint returns ok', async () => {
   }
 });
 
+test('HTTP transport accepts an explicit loopback host', async () => {
+  const port = await getFreePort();
+  const indexPath = path.resolve(__dirname, '../../dist/index.js');
+
+  const serverProcess = spawn('node', [
+    indexPath,
+    '--transport', 'http',
+    '--host', '127.0.0.1',
+    '--port', String(port),
+    '--log_level', 'silent'
+  ], {
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+
+  try {
+    const ready = await waitForServer(port);
+    assert.ok(ready, 'Server should listen on the requested loopback host');
+
+    const response = await fetch(`http://127.0.0.1:${port}/health`);
+    assert.equal(response.status, 200);
+  } finally {
+    serverProcess.kill('SIGTERM');
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+});
+
 test('stdio transport is the default', async () => {
   const indexPath = path.resolve(__dirname, '../../dist/index.js');
 
