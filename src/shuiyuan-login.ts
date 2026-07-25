@@ -3,10 +3,10 @@ import { spawnSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import { chromium, type BrowserContext, type Cookie, type Page } from "playwright";
 import { main as startMcp } from "./index.js";
 import { parseArgs } from "./util/cli.js";
+import { isMainModule } from "./util/is_main.js";
 import {
   SHUIYUAN_SITE,
   defaultShuiyuanCookieFile,
@@ -192,7 +192,7 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   main().catch((err) => {
     const msg = err?.message || String(err);
     process.stderr.write(`[${new Date().toISOString()}] ERROR ${msg}\n`);

@@ -17,6 +17,7 @@ Shuiyuan MCP 是一个面向 [水源社区](https://shuiyuan.sjtu.edu.cn/) 的 M
 ## 环境要求
 
 - Windows 推荐环境：PowerShell、Node.js >= 24、pnpm/corepack。
+- Linux 支持 Node.js >= 24、pnpm/corepack；完整流程见 [Linux 部署指南](docs/linux-deployment.md)。
 - 构建 Windows `.exe` 启动器需要 .NET SDK。
 - 首次登录会使用 Playwright 打开 Chromium 登录窗口；如果本机缺少 Chromium，登录命令会自动安装。
 
@@ -32,6 +33,13 @@ corepack --version
 ```powershell
 corepack pnpm install
 corepack pnpm build
+```
+
+Linux 可以使用对应的 Bash 启动器：
+
+```bash
+./scripts/shuiyuan-login.sh
+./scripts/shuiyuan-mcp.sh
 ```
 
 ## 第一次使用：登录水源

@@ -8,7 +8,13 @@ on:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
@@ -17,14 +23,50 @@ jobs:
         with:
           node-version: "24"
           cache: pnpm
-      - run: pnpm install
+      - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      - run: pnpm lint
       - run: pnpm build
       - run: pnpm test
+      - run: pnpm test:package
+
+  windows-launchers:
+    runs-on: windows-latest
+    needs: lint
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: pnpm
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - run: pnpm install --frozen-lockfile
+      - name: Build Windows launchers
+        shell: pwsh
+        run: .\scripts\build-shuiyuan-exe.ps1
+      - name: Smoke test Windows launcher
+        shell: pwsh
+        run: |
+          $start = Resolve-Path .\dist-win\shuiyuan-mcp.exe
+          $login = Resolve-Path .\dist-win\shuiyuan-mcp-login.exe
+          if (-not (Test-Path $start) -or -not (Test-Path $login)) {
+            throw "Expected both Windows launchers to be built."
+          }
+          $missingProfile = Join-Path $env:RUNNER_TEMP "missing-shuiyuan-profile.json"
+          $process = Start-Process -FilePath $start -ArgumentList @("--profile", $missingProfile) -Wait -PassThru -NoNewWindow
+          if ($process.ExitCode -ne 1) {
+            throw "Expected the launcher to propagate exit code 1 for a missing profile; got $($process.ExitCode)."
+          }
 
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: lint
+    needs:
+      - lint
+      - windows-launchers
     runs-on: ubuntu-latest
 
     permissions:
@@ -38,7 +80,7 @@ jobs:
         with:
           node-version: "24"
           cache: pnpm
-      - run: pnpm install
+      - run: pnpm install --frozen-lockfile
       - name: Create and push git tag
         run: |
           VERSION=$(node -p "require('./package.json').version")

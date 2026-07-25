@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { pathToFileURL } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -20,6 +19,7 @@ async function getPackageVersion(): Promise<string> {
   }
 }
 import { Logger, type LogLevel } from "./util/logger.js";
+import { isMainModule } from "./util/is_main.js";
 import { redactObject } from "./util/redact.js";
 import { parseArgs } from "./util/cli.js";
 import { type AuthMode } from "./http/client.js";
@@ -69,6 +69,7 @@ const ProfileSchema = z
       .default(50000)
       .describe("Maximum number of characters to include when returning post content (set via --max-read-length)"),
     transport: z.enum(["stdio", "http"]).optional().default("stdio").describe("Transport type: stdio (default) or http"),
+    host: z.string().min(1).optional().describe("Optional HTTP listen address; omitted preserves the platform default"),
     port: z.number().int().positive().optional().default(3000).describe("Port to listen on when using HTTP transport"),
     allowed_upload_paths: z.union([z.array(z.string()), z.string()])
       .optional()
@@ -149,6 +150,7 @@ function mergeConfig(profile: Partial<Profile>, flags: Record<string, unknown>):
     default_search: (((flags.default_search ?? flags["default-search"]) as string | undefined) ?? profile.default_search) as string | undefined,
     max_read_length: (((flags.max_read_length ?? flags["max-read-length"]) as number | undefined) ?? profile.max_read_length ?? 50000) as number,
     transport: ((flags.transport as "stdio" | "http" | undefined) ?? profile.transport ?? "stdio") as "stdio" | "http",
+    host: ((flags.host as string | undefined) ?? profile.host) as string | undefined,
     port: ((flags.port as number | undefined) ?? profile.port ?? 3000) as number,
     allowed_upload_paths: parseAllowedUploadPaths(flags.allowed_upload_paths ?? flags["allowed-upload-paths"], "from CLI") ?? parseAllowedUploadPaths(profile.allowed_upload_paths, "from profile"),
   } satisfies Profile;
@@ -315,11 +317,18 @@ export async function main(rawArgs = process.argv.slice(2)) {
       res.end(JSON.stringify({ error: "Not found" }));
     });
 
-    httpServer.listen(config.port, () => {
-      logger.info(`HTTP transport listening on port ${config.port}`);
-      logger.info(`Health check available at http://localhost:${config.port}/health`);
-      logger.info(`MCP endpoint available at http://localhost:${config.port}/mcp`);
-    });
+    const onListening = () => {
+      const rawDisplayHost = config.host ?? "localhost";
+      const displayHost = rawDisplayHost.includes(":") ? `[${rawDisplayHost}]` : rawDisplayHost;
+      logger.info(`HTTP transport listening on ${config.host ? `${config.host}:` : "port "}${config.port}`);
+      logger.info(`Health check available at http://${displayHost}:${config.port}/health`);
+      logger.info(`MCP endpoint available at http://${displayHost}:${config.port}/mcp`);
+    };
+    if (config.host) {
+      httpServer.listen(config.port, config.host, onListening);
+    } else {
+      httpServer.listen(config.port, onListening);
+    }
 
     // Exit cleanly on SIGTERM/SIGINT
     const onExit = () => {
@@ -346,7 +355,7 @@ export async function main(rawArgs = process.argv.slice(2)) {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   main().catch((err) => {
     const msg = err?.message || String(err);
     process.stderr.write(`[${new Date().toISOString()}] ERROR ${msg}\n`);
